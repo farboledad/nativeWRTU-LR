@@ -1,0 +1,189 @@
+<!-- Body HTML Section -->
+
+<style type="text/css">
+	.wipom-hide { display: none; visibility: hidden; }
+	.wipom-col1-width {width: 200px;}
+	.wipom-important-text {color: red;}
+	.wipom-full-width {width: 100%}
+ </style>
+
+<div id="wipom-msg" class="hide alert alert-error"></div>
+<input type="hidden" id="wipom-status-page" />
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>WiPOM Software Registration Form</legend>
+		<table class="table table-striped">
+			<tbody>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Request Code</td>
+					<td>
+						<input id="reg-request-code" type="text" readonly value="" class="wipom-full-width" />
+					</td>
+				</tr>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Registration Status</td>
+					<td id="reg-status"></td>
+				</tr>
+				<tr class="ng-scope reg-serial-number-ctrl">
+					<td>Serial Number</td>
+					<td>
+						<input id="reg-serial-number" type="text" value="" class="wipom-full-width" />
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+<!-- dialogs -->
+<div class="modal wipom-hide ng-scope" id="wipom-msg-dlg">
+	<div class="modal-header">
+		<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+		<h3 id="wipom-msg-dlg-title" class="ng-binding"></h3>
+	</div>
+	<div class="modal-body">
+		<p id="wipom-msg-dlg-text"></p>
+	</div>
+	<div class="modal-footer">
+		<button class="btn" id="wipom-msg-dlg-btn-ok">OK</button>
+	</div>
+</div>
+
+<div class="form-actions">
+	<input type="submit" class="btn btn-primary" id="wipom-btn-register" value="Register" />
+</div>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+
+
+// ************************************************************************************
+$(document).ready(function()
+{
+	// Setup first timer
+	setTimeout("DoRequest('get_reg_info', null, OnSuccess, OnError)", 0);
+
+	$('#wipom-btn-register').click(OnRegister);
+	$('#wipom-msg-dlg-btn-ok').click(OnOK);	
+	
+});
+
+
+// ************************************************************************************
+function OnOK()
+{
+	$('#wipom-msg-dlg').addClass('wipom-hide');
+}
+
+// ************************************************************************************
+function OnSuccess(data)
+{
+	if(data.DataType != "RegInfo")
+		return;
+
+	$('#wipom-msg').addClass("hide").html("");
+	
+	$('#reg-request-code').val(data.RequestCode);
+	$('#reg-status').html(data.IsRegistered ? "Registered" : "Not Registered");
+
+	if(data.IsRegistered)
+	{
+		$('.reg-serial-number-ctrl').addClass('wipom-hide');
+		$('#wipom-btn-register').addClass('wipom-hide');
+	}
+	else
+	{
+		$('.reg-serial-number-ctrl').removeClass('wipom-hide');
+		$('#wipom-btn-register').removeClass('wipom-hide');
+	}
+}
+
+
+// ************************************************************************************
+function OnRegister()
+{
+	var serial 	= $("#reg-serial-number").val();
+	
+	// collect sensors info
+	DoRequest('register', 
+		{ 
+			"Serial"	: serial
+		}, 
+		Register_OnSuccess, 
+		OnError);
+}
+
+// ************************************************************************************
+function Register_OnSuccess(data)
+{
+	if(data.DataType != "Register")
+		return;
+
+	if(data.IsKeyValid && data.IsKeySaved)
+	{
+		$('.reg-serial-number-ctrl').addClass('wipom-hide');
+		$('#wipom-btn-register').addClass('wipom-hide');
+
+		$('#reg-status').html("Registered");
+		$('#wipom-msg').addClass("hide").html("");
+	}
+	else
+	{
+		$('.reg-serial-number-ctrl').removeClass('wipom-hide');
+		$('#wipom-btn-register').removeClass('wipom-hide');
+
+		$('#reg-status').html("Not Registered");
+
+		if(!data.IsKeyValid)
+		{
+			$('#wipom-msg').removeClass("hide").html("Entered Serial Number is not valid.");
+		}
+		else
+		{
+			$('#wipom-msg').removeClass("hide").html("Entered Serial Number is valid but cannot be saved on device.");
+		}
+	}
+}
+
+// ************************************************************************************
+function OnError(x, t, m)
+{
+	if($('#wipom-status-page').length <= 0)
+		return;
+
+	if(t == "timeout")
+		$('#wipom-msg').removeClass("hide").html("Request to web server timed out.");
+
+	if(t == "abort")
+		$('#wipom-msg').removeClass("hide").html("Request to web server aborted.");
+
+	if(t == "parsererror")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed. Data parsing failed.");
+
+	if(t == "error")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed.");
+
+	setTimeout("DoRequest('get_status', null, OnSuccess, OnError)", 5000);
+}
+
+// ************************************************************************************
+// This function can be used to interface the JSON callback in a straightforward way
+function DoRequest(identifier, jsonData, onSuccess, onError)
+{
+	if(identifier != null && identifier != undefined)
+	{
+		var cb_url = "/api/libcg/" + identifier;
+		$.ajax({
+			url: cb_url,
+			type: "POST",
+			data: JSON.stringify(jsonData),
+			dataType: "json",
+			contentType: "application/json; charset=utf-8",
+			success: onSuccess,
+			error: onError
+		});
+	}
+}
+
+</script>

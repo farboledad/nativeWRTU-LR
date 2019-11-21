@@ -1,0 +1,415 @@
+<!-- Body HTML Section -->
+
+<style type="text/css">
+	.wipom-hide { display: none; visibility: hidden; }
+	.wipom-col1-width {width: 200px;}
+	.wipom-important-text {color: red;}
+ </style>
+
+<div id="wipom-msg" class="hide alert alert-error"></div>
+<input type="hidden" id="wipom-status-page" />
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>WiPOM Service Status</legend>
+		<button class="btn" id="wipom-btn-reboot"><i class="icon-off icon-large"></i> Reboot Software</button>
+		<table class="table table-striped">
+			<tbody>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Software Revision</td>
+					<td id="soft-ver"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Registration Status</td>
+					<td id="reg-status"></td>
+				</tr>				
+				<tr class="ng-scope">
+					<td>Uptime</td>
+					<td id="soft-uptime"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Current Time</td>
+					<td id="soft-time"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>RS485 Port Status</td>
+					<td id="soft-sp-status"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Connected Clients</td>
+					<td id="soft-client-count"></td>
+				</tr>
+
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>GPS Info</legend>
+		<table class="table table-striped">
+			<tbody>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Latitude</td>
+					<td id="gps-info-lat"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Longitude</td>
+					<td id="gps-info-lon"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Speed</td>
+					<td id="gps-info-speed"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Heading</td>
+					<td id="gps-info-heading"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Satellites</td>
+					<td id="gps-info-sat"></td>
+				</tr>				
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>Device Information</legend>
+		<table class="table table-striped">
+			<tbody>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Device ID</td>
+					<td id="dev-id"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Device Name</td>
+					<td id="dev-name"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Device RTU</td>
+					<td id="dev-rtu"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Tag Count</td>
+					<td id="dev-tags-count"></td>
+				</tr>
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>Data Pushing Info</legend>
+		<table class="table table-striped">
+			<tbody>
+				<tr class="ng-scope">
+					<td class="wipom-col1-width">Status</td>
+					<td id="dp-status"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Address</td>
+					<td id="dp-addr"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Port</td>
+					<td id="dp-port"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Protocol</td>
+					<td id="dp-protocol"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Period</td>
+					<td id="dp-period"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Last Session Time</td>
+					<td id="dp-last-time"></td>
+				</tr>
+				<tr class="ng-scope">
+					<td>Last Session Error</td>
+					<td id="dp-last-err"></td>
+				</tr>
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="" id="frm-log-list">
+	<fieldset>
+		<legend>Diagnostic Files</legend>
+		<table class="table table-striped" id="log-list">
+			<thead>
+				<th>#</th>
+				<th>Filename</th>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+
+<!-- dialogs -->
+<div class="modal wipom-hide ng-scope" id="wipom-msg-dlg">
+	<div class="modal-header">
+		<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+		<h3 id="wipom-msg-dlg-title" class="ng-binding"></h3>
+	</div>
+	<div class="modal-body">
+		<p id="wipom-msg-dlg-text"></p>
+	</div>
+	<div class="modal-footer">
+		<button class="btn" id="wipom-msg-dlg-btn-ok">OK</button>
+	</div>
+</div>
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+
+
+// ************************************************************************************
+$(document).ready(function()
+{
+	// Setup first timer
+	setTimeout("DoRequest('get_status', null, OnSuccess, OnError)", 0);
+	setTimeout("DoRequest('get_log_list', null, GetLogList_OnSuccess, OnError)", 0);
+
+	$('#wipom-btn-test-internet').click(OnTestInternet);
+	$('#wipom-btn-reboot').click(OnReboot);
+	$('#wipom-msg-dlg-btn-ok').click(OnOK);	
+	
+});
+
+// ************************************************************************************
+function GetLogList_OnSuccess(data)
+{
+	if(data.DataType != "LogList")
+		return;
+
+	$('#wipom-msg').addClass("hide").html("");
+
+	if(data.Files == null)
+		return;
+
+	if(data.Files.length <= 0)
+		return;
+
+	var tblLogFiles = $('#log-list >tbody');
+
+	tblLogFiles.empty();
+	for(f=0; f<data.Files.length; f++)
+	{
+		var row = $('<tr class="ng-scope"></tr>');
+
+		var colNumber  = $('<td>' + (f+1) + '</td>');
+		var colName    = $('<td><a href="/wipom-service-logs/' + data.Files[f] + '" class="wipom-view-log-link" target="_blank">' + data.Files[f] + '</a></td>');
+		
+		row.append(colNumber).append(colName);
+        tblLogFiles.append(row);
+	}
+}
+
+// ************************************************************************************
+function OnOK()
+{
+	$('#wipom-msg-dlg').addClass('wipom-hide');
+}
+
+// ************************************************************************************
+function OnTestInternet()
+{
+	DoRequest('test_internet', null, TestInternet_OnSuccess, OnError);
+}
+
+// ************************************************************************************
+function TestInternet_OnSuccess(data)
+{
+	$('#wipom-msg-dlg-title').html('Internet Test Results');
+	$('#wipom-msg-dlg-text').html(data.Results);
+	$('#wipom-msg-dlg').removeClass('wipom-hide');
+}
+
+// ************************************************************************************
+function OnReboot()
+{
+	DoRequest('reboot', null, Reboot_OnSuccess, OnError);
+}
+
+// ************************************************************************************
+function Reboot_OnSuccess(data)
+{
+	$('#wipom-msg-dlg-title').html('Reboot');
+	$('#wipom-msg-dlg-text').html('Software will be rebooted in few seconds.');
+	$('#wipom-msg-dlg').removeClass('wipom-hide');	
+}
+
+// ************************************************************************************
+function GetFormattedUptime(uptime)
+{
+	var days	= Math.floor(uptime / (3600 * 24));
+	var hours	= Math.floor((uptime % (3600 * 24)) / 3600);
+	var minutes = Math.floor((uptime % 3600) / 60);
+
+	var uptimeText = "";
+	if (days > 0)
+	{
+		if (days == 1)
+			uptimeText += "1 day ";
+		else
+			uptimeText += days + " days ";
+	}
+
+	if (hours > 0)
+	{
+		if (hours == 1)
+			uptimeText += "1 hour ";
+		else
+			uptimeText += hours + " hours ";
+	}
+
+	if (minutes == 1)
+		uptimeText += "1 minute";
+	else
+		uptimeText += minutes + " minutes";
+
+	return uptimeText;
+}
+
+// ************************************************************************************
+function OnSuccess(data)
+{
+	if(data.DataType != "SystemStatus")
+		return;
+
+	$('#wipom-msg').addClass("hide").html("");
+	
+	$('#reg-status').html(data.IsRegistered ? "Registered" : "Not Registered");
+	
+	var gpsInfoCoords = data.GpsLat + " | " + data.GpsLong;
+	$('#gps-info-lat').html(data.GpsLat);
+	$('#gps-info-lon').html(data.GpsLong);
+	$('#gps-info-speed').html(data.GpsSpeed + " knots");
+	$('#gps-info-heading').html(data.GpsHeading);
+	$('#gps-info-sat').html(data.GpsSatellite);
+
+	var uptimeText = GetFormattedUptime(data.Uptime);
+	$('#soft-ver').html(data.SoftwareVersion + " (" + data.BuildTime + ")");
+	$('#soft-uptime').html(uptimeText);
+	$('#soft-time').html(data.CGTime);
+	$('#soft-sp-status').html(data.SerialPortStatus == 0 ? "Closed" : "Opened");
+	
+	if(data.ClientCount >= 20)
+	{
+		$('#soft-client-count').addClass("wipom-important-text").html(data.ClientCount + " ( All connections are used )");
+	}
+	else
+	{
+		var leftConn = 20 - data.ClientCount;
+		if(leftConn == 1)
+			$('#soft-client-count').removeClass("wipom-important-text").html(data.ClientCount + " ( " + leftConn + " more connection available )");
+		else
+			$('#soft-client-count').removeClass("wipom-important-text").html(data.ClientCount + " ( " + leftConn + " more connections available )");
+	}
+	
+
+	$('#dev-id').html(data.DeviceId);
+	$('#dev-name').html(data.DeviceName);
+	$('#dev-rtu').html(data.DeviceRtu);
+	if(data.DeviceTagCount == 1)
+		$('#dev-tags-count').html(data.DeviceTagCount + " tag");
+	else
+		$('#dev-tags-count').html(data.DeviceTagCount + " tags");
+
+	var hours   = Math.floor(data.DataPushPeriod / 60);
+	var minutes = data.DataPushPeriod % 60;
+	var periodText = "";
+	if(hours < 1)
+	{
+		if(minutes == 1)
+			periodText = minutes + " minute";	
+		else
+			periodText = minutes + " minutes";	
+	}
+	else
+	{
+		if(hours == 1)	
+			periodText = hours + " hour";
+		else
+			periodText = hours + " hours";
+	}
+
+
+	$('#dp-status').html("Enabled");
+	$('#dp-addr').html(data.DataPushAddress);
+	$('#dp-port').html(data.DataPushPort);
+	$('#dp-protocol').html(data.DataPushProtocol);
+	$('#dp-period').html(periodText);
+	$('#dp-last-time').html(data.DataPushLastTime == null ? "N/A" : data.DataPushLastTime);
+
+	if(data.DataPushLastError == null)
+	{
+		$('#dp-last-err').html("N/A");
+	}
+	else
+	{
+		if(data.DataPushLastError == 0)
+		{
+			$('#dp-last-err').html("OK");
+		}
+		else
+		{
+			$('#dp-last-err').html(data.DataPushLastError + " (" + data.DataPushLastErrorText + ")");
+		}
+	}
+	
+
+	if($('#wipom-status-page').length)
+		setTimeout("DoRequest('get_status', null, OnSuccess, OnError)", 5000);
+}
+
+// ************************************************************************************
+function OnError(x, t, m)
+{
+	if($('#wipom-status-page').length <= 0)
+		return;
+
+	if(t == "timeout")
+		$('#wipom-msg').removeClass("hide").html("Request to web server timed out.");
+
+	if(t == "abort")
+		$('#wipom-msg').removeClass("hide").html("Request to web server aborted.");
+
+	if(t == "parsererror")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed. Data parsing failed.");
+
+	if(t == "error")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed.");
+
+	setTimeout("DoRequest('get_status', null, OnSuccess, OnError)", 5000);
+}
+
+// ************************************************************************************
+// This function can be used to interface the JSON callback in a straightforward way
+function DoRequest(identifier, jsonData, onSuccess, onError)
+{
+	if(identifier != null && identifier != undefined)
+	{
+		var cb_url = "/api/libcg/" + identifier;
+		$.ajax({
+			url: cb_url,
+			type: "POST",
+			data: JSON.stringify(jsonData),
+			dataType: "json",
+			contentType: "application/json; charset=utf-8",
+			success: onSuccess,
+			error: onError
+		});
+	}
+}
+
+</script>

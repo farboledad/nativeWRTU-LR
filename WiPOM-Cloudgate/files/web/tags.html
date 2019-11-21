@@ -1,0 +1,396 @@
+<!-- Body HTML Section -->
+
+<style type="text/css">
+	.wipom-hide { display: none; visibility: hidden; }
+	.wipom-col1-width {width: 200px;}
+	.wipom-important-text {color: red;}
+	.wipom-tag-disabled {color: #b7b7b7;}
+ </style>
+ 
+<div id="wipom-msg" class="hide alert alert-error"></div>
+<input type="hidden" id="wipom-tags-values-page" />
+
+<form class="well form-horizontal ng-scope ng-pristine ng-valid" novalidate="">
+	<fieldset>
+		<legend>Tags</legend>
+		<table class="table table-striped" id="wipom-tags">
+			<thead>
+				<th>#</th>
+				<th>Name</th>
+				<th>Type</th>
+				<th>Raw Value</th>
+				<th>Calc.Value</th>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+	</fieldset>
+</form>
+
+
+
+<!-- JavaScript Section -->
+<script type="text/javascript">
+
+var WRTU_TAG_MB_TYPE_COIL				= 0;
+var WRTU_TAG_MB_TYPE_DI					= 1;
+var WRTU_TAG_MB_TYPE_AI					= 2;
+var WRTU_TAG_MB_TYPE_REG				= 3;
+
+var WRTU_TAG_TYPE_AI					= 0;
+var WRTU_TAG_TYPE_AI_RMS				= 1;
+var WRTU_TAG_TYPE_DI					= 2;
+var WRTU_TAG_TYPE_DI_FREQ				= 3;
+var WRTU_TAG_TYPE_DO					= 4;
+var WRTU_TAG_TYPE_REG					= 5;
+var WRTU_TAG_TYPE_MB					= 6;
+var WRTU_TAG_TYPE_TLC2543				= 7;
+var WRTU_TAG_TYPE_DI_CNT				= 8;
+var WRTU_TAG_TYPE_DI_OPTO9				= 9;
+var WRTU_TAG_TYPE_DI_OPTO8DC			= 10;
+var WRTU_TAG_TYPE_EXPR       			= 11;
+var WRTU_TAG_TYPE_MB7389     			= 12;
+
+
+// ************************************************************************************
+$(document).ready(function()
+{
+	// Setup first timer
+	setTimeout("DoRequest('get_tags_info', null, TagsInfo_OnSuccess, OnError)", 0);
+});
+
+// ************************************************************************************
+function TagsInfo_OnSuccess(data)
+{
+	if(data.DataType != "TagsInfo")
+		return;
+
+	$('#wipom-msg').addClass("hide").html("");
+
+	var tblTags = $('#wipom-tags > tbody');
+
+	tblTags.empty();
+
+    for (idx = 0; idx < data.Tags.length; idx++)
+	{
+		if(data.Tags[idx] == null)
+			continue;
+
+		var tagType   = GetTagTypeText(data.Tags[idx]);
+		var cls = data.Tags[idx].IsScanEnabled ? "" : "wipom-tag-disabled";
+		var row = $('<tr class="' + cls + '"></tr>');
+
+		var colNumber  = $('<td>' + (idx+1) + '</td>');
+        var colName    = $('<td>' + data.Tags[idx].Name + '</td>');
+		var colType    = $('<td>' + tagType + '</td>');
+		var colRawVal  = $('<td id="tag-rv-' + data.Tags[idx].Id + '"></td>');
+		var colCalcVal = $('<td id="tag-cv-' + data.Tags[idx].Id + '"></td>');
+
+		row.append(colNumber).append(colName).append(colType).append(colRawVal).append(colCalcVal);
+        tblTags.append(row);
+	}
+
+	if($('#wipom-tags-values-page').length)
+		setTimeout("DoRequest('get_tags_values', null, TagsValues_OnSuccess, OnError)", 0);
+}
+
+// ************************************************************************************
+function TagsValues_OnSuccess(data)
+{
+	if(data.DataType != "TagsValues")
+		return;
+
+	$('#wipom-msg').addClass("hide").html("");
+
+    for (idx = 0; idx < data.Tags.length; idx++)
+	{
+		if(data.Tags[idx] == null)
+			continue;
+
+		var colRawVal = $('#tag-rv-' + data.Tags[idx].Id);
+		var colCalcVal = $('#tag-cv-' + data.Tags[idx].Id);
+
+		var calcValue = "";
+		var rawValue = "";
+
+		if(data.Tags[idx].IsValid == 0)
+		{
+			rawValue  = "Not Read";
+			calcValue = "Not Read";
+		}
+		else
+		if(data.Tags[idx].IsValid == 1)
+		{
+			rawValue  = "Not Valid";
+			calcValue = "Not Valid";
+		}
+		else		
+		{
+			var calcValue = GetCalcValue(data.Tags[idx]);
+			var rawValue = GetRawValue(data.Tags[idx]);
+		}
+
+		colRawVal.html(rawValue);
+		colCalcVal.html(calcValue);
+
+	}
+
+	if($('#wipom-tags-values-page').length)
+		setTimeout("DoRequest('get_tags_values', null, TagsValues_OnSuccess, OnError)", 500);
+}
+
+// ************************************************************************************
+function GetRawValue(tag)
+{
+	var rawVal = "";
+
+	if(tag.RawValue == "nan")
+	{
+		rawVal  = $('<td>Bad Value (NaN)</td>');
+	}
+	else
+	{
+		if( tag.Type == WRTU_TAG_TYPE_DI_OPTO8DC)
+		{
+			rawVal  = GetOPTO8ValueText(tag.RawValue);
+		}
+		else
+		if( tag.Type == WRTU_TAG_TYPE_DI)
+		{
+			rawVal = GetDIValueText(tag.RawValue);
+		}
+		else
+		if(	tag.Type == WRTU_TAG_TYPE_DO)
+		{
+			rawVal = GetDOValueText(tag.RawValue);
+		}
+		else
+		if( tag.Type == WRTU_TAG_TYPE_MB)
+		{
+			switch(tag.MBInfo.Type)
+			{
+			default:
+				if(tag.MBInfo.Type == 4) // FLOAT
+					rawVal = tag.RawValue.toFixed(3);
+				else
+					rawVal = tag.RawValue;
+				break;
+
+			case WRTU_TAG_MB_TYPE_DI:
+				rawVal = GetDIValueText(tag.RawValue);
+				break;
+
+			case WRTU_TAG_MB_TYPE_COIL:
+				rawVal = GetDOValueText(tag.RawValue);
+				break;
+			}
+		}
+		else
+		{
+			rawVal = tag.RawValue;
+		}	
+	}
+
+	return rawVal;
+}
+
+// ************************************************************************************
+function GetCalcValue(tag)
+{
+	if(tag.CalcValueIsText)
+		return tag.CalcValue;
+		
+	if(tag.CalcValue == "nan")
+	{
+		return "Bad Value (NaN)";
+	}		
+	
+	var v = tag.CalcValue.toFixed(3);
+
+	if(tag.Type == WRTU_TAG_TYPE_DI_OPTO8DC)
+	{
+		v = GetOPTO8ValueText(tag.RawValue);
+	}
+	else
+	if(tag.Type == WRTU_TAG_TYPE_DI)
+	{
+		v = GetDIValueText(tag.RawValue);
+	}
+	else
+	if(tag.Type == WRTU_TAG_TYPE_DO)
+	{
+		v = GetDOValueText(tag.RawValue);
+	}
+	else
+	if(tag.Type == WRTU_TAG_TYPE_MB)
+	{
+		switch(tag.MBInfo.Type)
+		{
+			case WRTU_TAG_MB_TYPE_COIL:
+				v = GetDOValueText(tag.RawValue);
+				break;
+			case WRTU_TAG_MB_TYPE_DI:
+				v = GetDIValueText(tag.RawValue);
+				break;
+
+			case WRTU_TAG_MB_TYPE_AI:
+			case WRTU_TAG_MB_TYPE_REG:
+				if(tag.Units1.length > 0)				
+					v += " " + tag.Units1; 
+				break;
+		}	
+	}
+	else
+	{
+		if(tag.Units1.length > 0)				
+			v += " " + tag.Units1; 
+	}
+
+	return v;
+}
+
+// ************************************************************************************
+function GetOPTO8ValueText(value)
+{
+	var text = "";
+
+	if(value == 1)
+		text = "OPEN";
+
+	if(value == 0)
+		text = "CLOSED";
+
+	return text;
+}
+
+// ************************************************************************************
+function GetDOValueText(value)
+{
+	var text = "";
+
+	if(value == 1)
+		text = "ON";
+
+	if(value == 0)
+		text = "OFF";
+
+	return text;
+}
+
+// ************************************************************************************
+function GetDIValueText(value)
+{
+	var text = "";
+
+	if(value == 0)
+		text = "ON (CLOSED)";
+
+	if(value == 1)
+		text = "OFF (OPEN)";
+
+	return text;
+}
+
+// ************************************************************************************
+function GetTagTypeText(tag)
+{
+	var tagType = "Unknown";
+	switch(tag.Type)
+	{
+		case WRTU_TAG_TYPE_AI:
+			tagType = "AI";
+			break;
+		case WRTU_TAG_TYPE_AI_RMS:
+			tagType = "AI RMS";
+			break;
+		case WRTU_TAG_TYPE_DI:
+			tagType = "DI";
+			break;
+		case WRTU_TAG_TYPE_DI_FREQ:
+			tagType = "DI FREQ";
+			break;
+		case WRTU_TAG_TYPE_DO:
+			tagType = "DO";
+			break;
+		case WRTU_TAG_TYPE_REG:
+			tagType = "HOLD";
+			break;
+		case WRTU_TAG_TYPE_MB:
+			tagType = "MB";
+			
+			switch(tag.MBInfo.Type)
+			{
+				case WRTU_TAG_MB_TYPE_COIL:
+					tagType += " [DO]";
+					break;
+				case WRTU_TAG_MB_TYPE_DI:
+					tagType += " [DI]";
+					break;
+				case WRTU_TAG_MB_TYPE_AI:
+					tagType += " [AI]";
+					break;
+				case WRTU_TAG_MB_TYPE_REG:
+					tagType += " [HOLD]";
+					break;
+			}
+
+			break;
+		case WRTU_TAG_TYPE_TLC2543:
+			tagType = "TLC2543";
+			break;
+		case WRTU_TAG_TYPE_DI_CNT:
+			tagType = "DI CNT";
+			break;
+		case WRTU_TAG_TYPE_EXPR:
+			tagType = "EXPR";
+			break;
+		case WRTU_TAG_TYPE_MB7389:
+			tagType = "MB7389";
+			break;
+	}
+
+	return tagType;
+}
+
+// ************************************************************************************
+function OnError(x, t, m)
+{
+	if($('#wipom-tags-values-page').length <= 0)
+		return;
+
+
+	if(t == "timeout")
+		$('#wipom-msg').removeClass("hide").html("Request to web server timed out.");
+
+	if(t == "abort")
+		$('#wipom-msg').removeClass("hide").html("Request to web server aborted.");
+
+	if(t == "parsererror")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed. Data parsing failed.");
+
+	if(t == "error")
+		$('#wipom-msg').removeClass("hide").html("Request to web server failed.");
+
+	setTimeout("DoRequest('get_tags_values', null, OnSuccess, OnError)", 5000);
+}
+
+// This function can be used to interface the JSON callback in a straightforward way
+function DoRequest(identifier, jsonData, onSuccess, onError)
+{
+	if(identifier != null && identifier != undefined)
+	{
+		var cb_url = "/api/libcg/" + identifier;
+		$.ajax({
+			url: cb_url,
+			type: "POST",
+			data: JSON.stringify(jsonData),
+			dataType: "json",
+			contentType: "application/json; charset=utf-8",
+			success: onSuccess,
+			error: onError
+		});
+	}
+}
+
+</script>
+
